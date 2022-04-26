@@ -9,6 +9,7 @@ contract('NFT bridge contract testing', async(accounts) => {
 
     let signer = accounts[9]
     let signerPrivKey = "0x4d4de74e791ded9d7e0add7a5f50e9097e56102239c5f432e61c325868dd9cb9" // copy paste from ganache-cli
+    let nonSignerPrivKey = "0x71234879392cc2923eab957777310515a4fd23db65ce7138ff6952aa806c62d4"
 
     let srcXId // Lock nft transaction Id
     before(async() => {
@@ -25,6 +26,7 @@ contract('NFT bridge contract testing', async(accounts) => {
 
     it('set signer', async() => {
         await src.setSigner(signer)
+        await dest.setSigner(signer)
     })
 
     it('lock nft to source bridge', async() => {
@@ -44,10 +46,35 @@ contract('NFT bridge contract testing', async(accounts) => {
         await dest.createNft(nft.address, wrapName, wrapSymbol, wrapBaseUri)
     })
 
-    it('unlock nft from destination bridge', async() => {
+    it('unlock nft', async() => {
         let wrapNftAddr = await dest.wrapNfts.call(0)
         let receiver = locker
         let tokenId = 0
-        await dest.unlock(wrapNftAddr, receiver, tokenId)
+        
+        let msg = web3.eth.abi.encodeParameters(
+            [ 'address', 'address', 'uint256', 'uint256' ],
+            [ wrapNftAddr, receiver, tokenId, srcXId ]
+        )
+        
+        let signature = web3.eth.accounts.sign(msg, signerPrivKey)
+        
+        await dest.unlock(msg, signature.messageHash, Number(signature.v), signature.r, signature.s)
+
+        try {
+            await dest.unlock(msg, signature.messageHash, Number(signature.v), signature.r, signature.s)
+        } catch {
+            console.log('Unlock Failed: unlock request has already done ')
+        }
+
+        try {
+            msg = web3.eth.abi.encodeParameters(
+                [ 'address', 'address', 'uint256', 'uint256' ],
+                [ wrapNftAddr, receiver, tokenId, srcXId ]
+            )
+            signature = web3.eth.accounts.sign(msg, nonSignerPrivKey)
+            await dest.unlock(msg, signature.messageHash, Number(signature.v), signature.r, signature.s)
+        } catch {
+            console.log('Unlock Failed: non-signer signed the message')
+        }
     })
 })

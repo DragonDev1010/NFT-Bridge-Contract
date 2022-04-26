@@ -12,7 +12,8 @@ contract SrcBridge is Ownable{
     mapping(bytes32 => bool) private executedXIds;
     address public nftFactory;
     address[] public wrapNfts;
-    mapping(address => address) wrapMatch;
+    mapping(address => address) public wrapMatch;
+    mapping(bytes => bool) private usedMsg;
 
     event Locked(bytes32 transferId);
 
@@ -21,30 +22,34 @@ contract SrcBridge is Ownable{
         require(IERC721(nftAddr).getApproved(tokenId) == address(this), 'Owner has to approve token to lock');
         IERC721(nftAddr).transferFrom(msg.sender, address(this), tokenId);
 
-        bytes32 transferId = keccak256(abi.encodePacked(msg.sender, tokenId, (locked*37), block.timestamp));
+        bytes32 transferId = keccak256(abi.encodePacked(msg.sender, nftAddr, tokenId, (locked*37), block.timestamp));
         locked++;
         emit Locked(transferId);
     }
 
-    function unlock(address wrapNftAddr, address receiver, uint256 tokenId) public {
-        // Make wrap NFT contract to mint : mint(receiver, tokenId)
+    function unlock(bytes memory requestMsg, bytes32 msgHash, uint8 v, bytes32 r, bytes32 s) public {
+        require(usedMsg[requestMsg] != false, 'Request message is already used.');
+        require(_isSigned(msgHash, v, r, s), "failed to verify");
+        address wrapNftAddr;
+        address receiver;
+        uint256 tokenId;
+        (wrapNftAddr, receiver, tokenId) = _parse(requestMsg);
         IWrapNft(wrapNftAddr).mint(receiver, tokenId);
+        usedMsg[requestMsg] = true;
     }
 
-    function _parse(bytes memory request) private pure returns(uint256, uint256, address, address) {
-        uint256 srcXId;
-        uint256 tokenId;
-        address nftAddr;
+    function _parse(bytes memory request) private pure returns(address, address, uint256) {
+        address wrapNftAddr;
         address receiver;
+        uint256 tokenId;
 
         assembly {
-            srcXId := mload(add(request, 0x20))
-            tokenId := mload(add(request, 0x40))
-            nftAddr := mload(add(request, 0x60))
-            receiver := mload(add(request, 0x80))
+            wrapNftAddr := mload(add(request, 0x20))
+            receiver := mload(add(request, 0x40))
+            tokenId := mload(add(request, 0x60))
         }
 
-        return (srcXId, tokenId, nftAddr, receiver);
+        return (wrapNftAddr, receiver, tokenId);
     }
 
     function _isSigned( bytes32 msgHash, uint8 v, bytes32 r, bytes32 s) private view returns (bool) {
