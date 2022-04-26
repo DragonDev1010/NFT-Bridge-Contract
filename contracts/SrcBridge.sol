@@ -8,6 +8,7 @@ import './interface/IWrapNft.sol';
 
 contract SrcBridge is Ownable{
     uint256 private locked;
+    uint256 public fee;
     address public signer;
     mapping(bytes32 => bool) private executedXIds;
     address public nftFactory;
@@ -28,7 +29,7 @@ contract SrcBridge is Ownable{
     }
 
     function unlock(bytes memory requestMsg, bytes32 msgHash, uint8 v, bytes32 r, bytes32 s) public {
-        require(usedMsg[requestMsg] != false, 'Request message is already used.');
+        require(usedMsg[requestMsg] == false, 'Request message is already used.');
         require(_isSigned(msgHash, v, r, s), "failed to verify");
         address wrapNftAddr;
         address receiver;
@@ -69,5 +70,9 @@ contract SrcBridge is Ownable{
         address newWrapNft = INftFactory(nftFactory).createNft(name, symbol, baseUri);
         wrapMatch[srcNftAddr] = newWrapNft;
         wrapNfts.push(newWrapNft);
+    }
+
+    function setFee(uint256 fee_) public onlyOwner {
+        fee = fee_;
     }
 }

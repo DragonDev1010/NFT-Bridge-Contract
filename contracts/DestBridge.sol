@@ -8,6 +8,7 @@ import './interface/IWrapNft.sol';
 
 contract DestBridge is Ownable{
     uint256 private locked;
+    uint256 public fee;
     address public signer;
     mapping(bytes32 => bool) private executedXIds;
     address public nftFactory;
@@ -69,5 +70,9 @@ contract DestBridge is Ownable{
         address newWrapNft = INftFactory(nftFactory).createNft(name, symbol, baseUri);
         wrapMatch[srcNftAddr] = newWrapNft;
         wrapNfts.push(newWrapNft);
+    }
+
+    function setFee(uint256 fee_) public onlyOwner {
+        fee = fee_;
     }
 }
